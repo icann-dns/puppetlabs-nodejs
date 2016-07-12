@@ -1,73 +1,225 @@
-# Class: nodejs::parms
-#
-# Parameters:
-#
-# Actions:
-#
-# Requires:
-#
-# Usage:
-#
 class nodejs::params {
+  $legacy_debian_symlinks      = false
+  $npmrc_auth                  = undef
+  $nodejs_debug_package_ensure = 'absent'
+  $nodejs_dev_package_ensure   = 'absent'
+  $nodejs_package_ensure       = 'present'
+  $repo_enable_src             = false
+  $repo_ensure                 = 'present'
+  $repo_pin                    = false
+  $repo_priority               = 'absent'
+  $repo_proxy                  = 'absent'
+  $repo_proxy_password         = 'absent'
+  $repo_proxy_username         = 'absent'
+  $repo_url_suffix             = '0.10'
+  $use_flags                   = ['npm', 'snapshot']
 
-  case $::operatingsystem {
-    'Debian', 'Ubuntu': {
-      $node_pkg = 'nodejs'
-      $npm_pkg  = 'npm'
-      $dev_pkg  = 'nodejs-dev'
-    }
+  # The full path to cmd.exe is required on Windows. The system32 fact is only
+  # available from Facter 2.3
+  $cmd_exe_path = $::osfamily ? {
+    'Windows' => 'C:\Windows\system32\cmd.exe',
+    default   => undef,
+  }
 
-    'SLES', 'OpenSuSE': {
-      $node_pkg = 'nodejs'
-      $npm_pkg  = 'npm'
-      $dev_pkg  = 'nodejs-devel'
-    }
-
-    'RedHat', 'Scientific', 'CentOS', 'OEL', 'OracleLinux': {
-      $majdistrelease = $::lsbmajdistrelease ? {
-        ''      => regsubst($::operatingsystemrelease,'^(\d+)\.(\d+)','\1'),
-        default => $::lsbmajdistrelease,
+  case $::osfamily {
+    'Debian': {
+      if $::operatingsystemrelease =~ /^6\.(\d+)/ {
+        fail("The ${module_name} module is not supported on Debian Squeeze.")
       }
-
-      case $majdistrelease {
-        '5': {
-          $gpgcheck = 0
-          $node_pkg = 'nodejs-compat-symlinks'
-        }
-        default: {
-          $gpgcheck = 1
-          $node_pkg = 'nodejs'
-        }
+      if $::operatingsystemrelease =~ /^7\.(\d+)/ {
+        $manage_package_repo       = true
+        $nodejs_debug_package_name = 'nodejs-dbg'
+        $nodejs_dev_package_name   = undef
+        $nodejs_package_name       = 'nodejs'
+        $npm_package_ensure        = 'absent'
+        $npm_package_name          = false
+        $npm_path                  = '/usr/bin/npm'
+        $repo_class                = '::nodejs::repo::nodesource'
       }
-      $npm_pkg  = 'npm'
-      $baseurl  = 'http://patches.fedorapeople.org/oldnode/stable/el$releasever/$basearch/'
+      elsif $::operatingsystemrelease =~ /^10.04$/ {
+        $manage_package_repo       = true
+        $nodejs_debug_package_name = 'nodejs-dbg'
+        $nodejs_dev_package_name   = undef
+        $nodejs_package_name       = 'nodejs'
+        $npm_package_ensure        = 'absent'
+        $npm_package_name          = false
+        $npm_path                  = '/usr/bin/npm'
+        $repo_class                = '::nodejs::repo::nodesource'
+      }
+      elsif $::operatingsystemrelease =~ /^12.04$/ {
+        $manage_package_repo       = true
+        $nodejs_debug_package_name = 'nodejs-dbg'
+        $nodejs_dev_package_name   = 'nodejs-dev'
+        $nodejs_package_name       = 'nodejs'
+        $npm_package_ensure        = 'absent'
+        $npm_package_name          = 'npm'
+        $npm_path                  = '/usr/bin/npm'
+        $repo_class                = '::nodejs::repo::nodesource'
+      }
+      elsif $::operatingsystemrelease =~ /^14.04$/ {
+        $manage_package_repo       = true
+        $nodejs_debug_package_name = 'nodejs-dbg'
+        $nodejs_dev_package_name   = 'nodejs-dev'
+        $nodejs_package_name       = 'nodejs'
+        $npm_package_ensure        = 'absent'
+        $npm_package_name          = 'npm'
+        $npm_path                  = '/usr/bin/npm'
+        $repo_class                = '::nodejs::repo::nodesource'
+      }
+      else {
+        warning("The ${module_name} module might not work on ${::operatingsystem} ${::operatingsystemrelease}. Sensible defaults will be attempted.")
+        $manage_package_repo       = true
+        $nodejs_debug_package_name = 'nodejs-dbg'
+        $nodejs_dev_package_name   = 'nodejs-dev'
+        $nodejs_package_name       = 'nodejs'
+        $npm_package_ensure        = 'absent'
+        $npm_package_name          = 'npm'
+        $npm_path                  = '/usr/bin/npm'
+        $repo_class                = '::nodejs::repo::nodesource'
+      }
     }
-
-    'Fedora': {
-      $node_pkg = 'nodejs-compat-symlinks'
-      $npm_pkg  = 'npm'
-      $gpgcheck = 1
-      $baseurl  = 'http://patches.fedorapeople.org/oldnode/stable/f$releasever/$basearch/'
+    'RedHat': {
+      if $::operatingsystemrelease =~ /^[5-7]\.(\d+)/ {
+        $manage_package_repo       = true
+        $nodejs_debug_package_name = 'nodejs-debuginfo'
+        $nodejs_dev_package_name   = 'nodejs-devel'
+        $nodejs_package_name       = 'nodejs'
+        $npm_package_ensure        = 'absent'
+        $npm_package_name          = 'npm'
+        $npm_path                  = '/usr/bin/npm'
+        $repo_class                = '::nodejs::repo::nodesource'
+      }
+      elsif ($::operatingsystem == 'Fedora') and (versioncmp($::operatingsystemrelease, '18') > 0) {
+        $manage_package_repo       = true
+        $nodejs_debug_package_name = 'nodejs-debuginfo'
+        $nodejs_dev_package_name   = 'nodejs-devel'
+        $nodejs_package_name       = 'nodejs'
+        $npm_package_ensure        = 'absent'
+        $npm_package_name          = 'npm'
+        $npm_path                  = '/usr/bin/npm'
+        $repo_class                = '::nodejs::repo::nodesource'
+      }
+      elsif ($::operatingsystem == 'Amazon') {
+        $manage_package_repo       = true
+        $nodejs_debug_package_name = 'nodejs-debuginfo'
+        $nodejs_dev_package_name   = 'nodejs-devel'
+        $nodejs_package_name       = 'nodejs'
+        $npm_package_ensure        = 'absent'
+        $npm_package_name          = 'npm'
+        $npm_path                  = '/usr/bin/npm'
+        $repo_class                = '::nodejs::repo::nodesource'
+      }
+      else {
+        fail("The ${module_name} module is not supported on ${::operatingsystem} ${::operatingsystemrelease}.")
+      }
     }
-
-    'Amazon': {
-      $node_pkg = 'nodejs'
-      $npm_pkg  = 'npm'
-      $gpgcheck = 1
-      $baseurl  = 'http://patches.fedorapeople.org/oldnode/stable/amzn1/$basearch/'
+    'Suse': {
+      $manage_package_repo       = false
+      $nodejs_debug_package_name = 'nodejs-debuginfo'
+      $nodejs_dev_package_name   = 'nodejs-devel'
+      $nodejs_package_name       = 'nodejs'
+      $npm_package_ensure        = 'present'
+      $npm_package_name          = 'npm'
+      $npm_path                  = '/usr/bin/npm'
+      $repo_class                = undef
     }
-
-    'Gentoo': {
-      $node_pkg = 'net-libs/nodejs'
-    }
-
     'Archlinux': {
-      $node_pkg = 'nodejs'
+      $manage_package_repo       = false
+      $nodejs_debug_package_name = undef
+      $nodejs_dev_package_name   = undef
+      $nodejs_package_name       = 'nodejs'
+      $npm_package_ensure        = 'present'
+      $npm_package_name          = 'npm'
+      $npm_path                  = '/usr/bin/npm'
+      $repo_class                = undef
+    }
+    'FreeBSD': {
+      $manage_package_repo       = false
+      $nodejs_debug_package_name = undef
+      $nodejs_dev_package_name   = 'www/node-devel'
+      $nodejs_package_name       = 'www/node'
+      $npm_package_ensure        = 'present'
+      $npm_package_name          = 'www/npm'
+      $npm_path                  = '/usr/bin/npm'
+      $repo_class                = undef
+    }
+    'OpenBSD': {
+      $manage_package_repo       = false
+      $nodejs_debug_package_name = undef
+      $nodejs_dev_package_name   = undef
+      $nodejs_package_name       = 'node'
+      $npm_package_ensure        = 'absent'
+      $npm_package_name          = false
+      $npm_path                  = '/usr/local/bin/npm'
+      $repo_class                = undef
+    }
+    'Darwin': {
+      $manage_package_repo       = false
+      $nodejs_debug_package_name = undef
+      $nodejs_dev_package_name   = 'nodejs-devel'
+      $nodejs_package_name       = 'nodejs'
+      $npm_package_ensure        = 'present'
+      $npm_package_name          = 'npm'
+      $npm_path                  = '/opt/local/bin/npm'
+      $repo_class                = undef
+      Package { provider => 'macports' }
+    }
+    'Windows': {
+      $manage_package_repo       = false
+      $nodejs_debug_package_name = undef
+      $nodejs_dev_package_name   = undef
+      $nodejs_package_name       = 'nodejs'
+      $npm_package_ensure        = 'absent'
+      $npm_package_name          = 'npm'
+      $npm_path                  = '"C:\Program Files\nodejs\npm.cmd"'
+      $repo_class                = undef
+      Package { provider => 'chocolatey' }
+    }
+    # Gentoo was added as its own $::osfamily in Facter 1.7.0
+    'Gentoo': {
+      $manage_package_repo       = false
+      $nodejs_debug_package_name = undef
+      $nodejs_dev_package_name   = undef
+      $nodejs_package_name       = 'net-libs/nodejs'
+      $npm_package_ensure        = 'absent'
+      $npm_package_name          = false
+      $npm_path                  = '/usr/bin/npm'
+      $repo_class                = undef
+    }
+    'Linux': {
+    # Before Facter 1.7.0 Gentoo did not have its own $::osfamily
+      case $::operatingsystem {
+        'Gentoo': {
+          $manage_package_repo       = false
+          $nodejs_debug_package_name = undef
+          $nodejs_dev_package_name   = undef
+          $nodejs_package_name       = 'net-libs/nodejs'
+          $npm_package_ensure        = 'absent'
+          $npm_package_name          = false
+          $npm_path                  = '/usr/bin/npm'
+          $repo_class                = undef
+        }
+        'Amazon': {
+          # this is here only for historical reasons:
+          # old facter and Amazon Linux versions will run into this code path
+          $manage_package_repo       = true
+          $nodejs_debug_package_name = 'nodejs-debuginfo'
+          $nodejs_dev_package_name   = 'nodejs-devel'
+          $nodejs_package_name       = 'nodejs'
+          $npm_package_ensure        = 'absent'
+          $npm_package_name          = 'npm'
+          $npm_path                  = '/usr/bin/npm'
+          $repo_class                = '::nodejs::repo::nodesource'
+        }
+
+        default: {
+          fail("The ${module_name} module is not supported on an ${::operatingsystem} distribution.")
+        }
+      }
     }
 
     default: {
-      fail("Class nodejs does not support ${::operatingsystem}")
+      fail("The ${module_name} module is not supported on a ${::osfamily} based system.")
     }
   }
-
 }
